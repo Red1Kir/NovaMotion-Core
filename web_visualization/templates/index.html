@@ -1,1 +1,875 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NovaMotion Core - Intelligent Motion Planning</title>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.plot.ly/plotly-2.24.1.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
 
+        body {
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            color: #e2e8f0;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 300px 1fr 300px;
+            grid-template-rows: auto 1fr;
+            gap: 20px;
+            height: calc(100vh - 40px);
+        }
+
+        .header {
+            grid-column: 1 / -1;
+            background: rgba(30, 41, 59, 0.8);
+            border-radius: 15px;
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            backdrop-filter: blur(10px);
+            border: 1px solid #334155;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .logo h1 {
+            background: linear-gradient(90deg, #60a5fa, #a78bfa);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            font-size: 28px;
+            font-weight: 700;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 16px;
+            background: #065f46;
+            border-radius: 20px;
+            font-size: 14px;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            background: #10b981;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .control-panel {
+            background: rgba(30, 41, 59, 0.8);
+            border-radius: 15px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            backdrop-filter: blur(10px);
+            border: 1px solid #334155;
+        }
+
+        .panel-section {
+            background: rgba(15, 23, 42, 0.6);
+            border-radius: 10px;
+            padding: 15px;
+        }
+
+        .panel-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #94a3b8;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .input-group {
+            margin-bottom: 15px;
+        }
+
+        .input-group label {
+            display: block;
+            font-size: 14px;
+            margin-bottom: 5px;
+            color: #cbd5e1;
+        }
+
+        .input-group input, .input-group select {
+            width: 100%;
+            padding: 8px 12px;
+            background: rgba(30, 41, 59, 0.8);
+            border: 1px solid #475569;
+            border-radius: 6px;
+            color: #e2e8f0;
+            font-size: 14px;
+        }
+
+        .input-group input:focus, .input-group select:focus {
+            outline: none;
+            border-color: #60a5fa;
+        }
+
+        .button {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, opacity 0.2s;
+            margin-top: 10px;
+        }
+
+        .button:hover {
+            transform: translateY(-2px);
+            opacity: 0.9;
+        }
+
+        .button:active {
+            transform: translateY(0);
+        }
+
+        .button.secondary {
+            background: #475569;
+        }
+
+        .visualization-area {
+            background: rgba(30, 41, 59, 0.8);
+            border-radius: 15px;
+            padding: 20px;
+            display: grid;
+            grid-template-rows: 1fr 300px;
+            gap: 20px;
+            backdrop-filter: blur(10px);
+            border: 1px solid #334155;
+        }
+
+        .chart-container {
+            background: rgba(15, 23, 42, 0.6);
+            border-radius: 10px;
+            padding: 15px;
+            position: relative;
+        }
+
+        .chart-title {
+            position: absolute;
+            top: 10px;
+            left: 20px;
+            font-size: 14px;
+            color: #94a3b8;
+            z-index: 10;
+        }
+
+        .quality-panel {
+            background: rgba(30, 41, 59, 0.8);
+            border-radius: 15px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            backdrop-filter: blur(10px);
+            border: 1px solid #334155;
+        }
+
+        .quality-score {
+            text-align: center;
+            padding: 20px;
+            background: linear-gradient(135deg, #1e40af, #7c3aed);
+            border-radius: 10px;
+        }
+
+        .score-value {
+            font-size: 48px;
+            font-weight: 700;
+            background: linear-gradient(90deg, #60a5fa, #a78bfa);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+
+        .score-label {
+            font-size: 14px;
+            color: #cbd5e1;
+            margin-top: 5px;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .metric-card {
+            background: rgba(15, 23, 42, 0.6);
+            border-radius: 8px;
+            padding: 12px;
+            text-align: center;
+        }
+
+        .metric-value {
+            font-size: 18px;
+            font-weight: 600;
+            color: #60a5fa;
+        }
+
+        .metric-label {
+            font-size: 12px;
+            color: #94a3b8;
+            margin-top: 5px;
+        }
+
+        .notification {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 15px 20px;
+            background: #065f46;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            animation: slideIn 0.3s ease;
+            z-index: 1000;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        .notification.error {
+            background: #7f1d1d;
+        }
+
+        .slider-container {
+            margin: 20px 0;
+        }
+
+        .slider-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+        }
+
+        .slider-value {
+            color: #60a5fa;
+            font-weight: 600;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 6px;
+            background: #475569;
+            border-radius: 3px;
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 20px;
+            height: 20px;
+            background: #60a5fa;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <div class="logo">
+                <div style="font-size: 32px;">⚡</div>
+                <h1>NovaMotion Core</h1>
+                <div class="status-indicator">
+                    <div class="status-dot"></div>
+                    <span id="connectionStatus">Connected</span>
+                </div>
+            </div>
+            <div style="display: flex; gap: 15px;">
+                <button class="button secondary" onclick="calibratePrinter()">Calibrate</button>
+                <button class="button" onclick="runDemo()">Run Demo</button>
+            </div>
+        </div>
+
+        <!-- Left Control Panel -->
+        <div class="control-panel">
+            <div class="panel-section">
+                <div class="panel-title">📊 Printer Parameters</div>
+                <div class="input-group">
+                    <label for="massX">Mass X (kg)</label>
+                    <input type="number" id="massX" value="0.5" step="0.1" min="0.1">
+                </div>
+                <div class="input-group">
+                    <label for="resonanceX">Resonance X (Hz)</label>
+                    <input type="number" id="resonanceX" value="45.0" step="1" min="10">
+                </div>
+                <div class="input-group">
+                    <label for="backlashX">Backlash X (mm)</label>
+                    <input type="number" id="backlashX" value="0.01" step="0.001" min="0">
+                </div>
+                <button class="button" onclick="updateParameters()">Update Model</button>
+            </div>
+
+            <div class="panel-section">
+                <div class="panel-title">🎯 Motion Planning</div>
+                <div class="input-group">
+                    <label for="fromX">From X</label>
+                    <input type="number" id="fromX" value="0" step="10">
+                </div>
+                <div class="input-group">
+                    <label for="toX">To X</label>
+                    <input type="number" id="toX" value="100" step="10">
+                </div>
+                <div class="slider-container">
+                    <div class="slider-label">
+                        <span>Quality vs Speed</span>
+                        <span class="slider-value" id="qualityValue">70%</span>
+                    </div>
+                    <input type="range" id="qualitySlider" min="0" max="100" value="70" 
+                           oninput="updateQualitySlider(this.value)">
+                </div>
+                <button class="button" onclick="planMovement()">Plan Movement</button>
+                <button class="button secondary" onclick="simulateMovement()">Real-time Sim</button>
+            </div>
+
+            <div class="panel-section">
+                <div class="panel-title">⚙️ Constraints</div>
+                <div class="input-group">
+                    <label for="maxVel">Max Velocity (mm/s)</label>
+                    <input type="number" id="maxVel" value="200" step="10" min="1">
+                </div>
+                <div class="input-group">
+                    <label for="maxAccel">Max Acceleration (mm/s²)</label>
+                    <input type="number" id="maxAccel" value="3000" step="100" min="100">
+                </div>
+                <div class="input-group">
+                    <label for="maxJerk">Max Jerk (mm/s³)</label>
+                    <input type="number" id="maxJerk" value="50000" step="1000" min="1000">
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Visualization Area -->
+        <div class="visualization-area">
+            <div class="chart-container">
+                <div class="chart-title">Trajectory Simulation</div>
+                <canvas id="trajectoryChart"></canvas>
+            </div>
+            <div class="chart-container">
+                <div class="chart-title">Error & Vibration Analysis</div>
+                <canvas id="errorChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Right Quality Panel -->
+        <div class="quality-panel">
+            <div class="quality-score">
+                <div class="score-value" id="overallScore">85</div>
+                <div class="score-label">Overall Quality Score</div>
+            </div>
+            
+            <div class="panel-section">
+                <div class="panel-title">📈 Quality Metrics</div>
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <div class="metric-value" id="trackingScore">92</div>
+                        <div class="metric-label">Tracking</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value" id="vibrationScore">78</div>
+                        <div class="metric-label">Vibration</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value" id="rmsError">0.012</div>
+                        <div class="metric-label">RMS Error (mm)</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value" id="maxError">0.045</div>
+                        <div class="metric-label">Max Error (mm)</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel-section">
+                <div class="panel-title">📋 Recommendations</div>
+                <div id="recommendations" style="font-size: 14px; line-height: 1.5; color: #cbd5e1;">
+                    <p>• Reduce acceleration for sharp corners</p>
+                    <p>• Increase coasting distance before stops</p>
+                    <p>• Consider backlash compensation</p>
+                </div>
+            </div>
+
+            <div class="panel-section">
+                <div class="panel-title">🔧 TMC2209 Status</div>
+                <div style="font-size: 14px; color: #cbd5e1;">
+                    <p>Driver: TMC2209 (UART)</p>
+                    <p>Current: 1.2A / 1.4A</p>
+                    <p>Microsteps: 16x</p>
+                    <p>StealthChop2: Active</p>
+                    <p>StallGuard: Ready</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let socket = null;
+        let trajectoryChart = null;
+        let errorChart = null;
+        let currentData = null;
+
+        // Initialize WebSocket connection
+        function initWebSocket() {
+            socket = io();
+            
+            socket.on('connect', () => {
+                updateStatus('Connected', true);
+                showNotification('Connected to NovaMotion Core', 'success');
+            });
+            
+            socket.on('disconnect', () => {
+                updateStatus('Disconnected', false);
+                showNotification('Disconnected from server', 'error');
+            });
+            
+            socket.on('simulation_update', (data) => {
+                updateRealTimeSimulation(data);
+            });
+            
+            socket.on('simulation_complete', (data) => {
+                updateQualityMetrics(data.quality);
+                showNotification('Simulation completed successfully', 'success');
+            });
+            
+            socket.on('status', (data) => {
+                console.log('Server status:', data.message);
+            });
+        }
+
+        // Update connection status
+        function updateStatus(text, isConnected) {
+            const statusEl = document.getElementById('connectionStatus');
+            const dotEl = document.querySelector('.status-dot');
+            
+            statusEl.textContent = text;
+            dotEl.style.background = isConnected ? '#10b981' : '#ef4444';
+        }
+
+        // Initialize charts
+        function initCharts() {
+            const trajectoryCtx = document.getElementById('trajectoryChart').getContext('2d');
+            trajectoryChart = new Chart(trajectoryCtx, {
+                type: 'line',
+                data: {
+                    datasets: [
+                        {
+                            label: 'Target Position',
+                            data: [],
+                            borderColor: '#60a5fa',
+                            backgroundColor: 'transparent',
+                            borderWidth: 2,
+                            tension: 0.4
+                        },
+                        {
+                            label: 'Actual Position',
+                            data: [],
+                            borderColor: '#10b981',
+                            backgroundColor: 'transparent',
+                            borderWidth: 2,
+                            tension: 0.4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            type: 'linear',
+                            position: 'bottom',
+                            title: {
+                                display: true,
+                                text: 'Time (s)',
+                                color: '#94a3b8'
+                            },
+                            grid: { color: 'rgba(148, 163, 184, 0.1)' }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'Position (mm)',
+                                color: '#94a3b8'
+                            },
+                            grid: { color: 'rgba(148, 163, 184, 0.1)' }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            labels: { color: '#94a3b8' }
+                        }
+                    }
+                }
+            });
+
+            const errorCtx = document.getElementById('errorChart').getContext('2d');
+            errorChart = new Chart(errorCtx, {
+                type: 'line',
+                data: {
+                    datasets: [
+                        {
+                            label: 'Tracking Error',
+                            data: [],
+                            borderColor: '#f87171',
+                            backgroundColor: 'rgba(248, 113, 113, 0.1)',
+                            borderWidth: 2,
+                            fill: true,
+                            tension: 0.4
+                        },
+                        {
+                            label: 'Velocity',
+                            data: [],
+                            borderColor: '#a78bfa',
+                            backgroundColor: 'transparent',
+                            borderWidth: 1,
+                            yAxisID: 'y1',
+                            tension: 0.4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            type: 'linear',
+                            position: 'bottom',
+                            title: {
+                                display: true,
+                                text: 'Time (s)',
+                                color: '#94a3b8'
+                            },
+                            grid: { color: 'rgba(148, 163, 184, 0.1)' }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'Error (mm)',
+                                color: '#94a3b8'
+                            },
+                            grid: { color: 'rgba(148, 163, 184, 0.1)' }
+                        },
+                        y1: {
+                            type: 'linear',
+                            position: 'right',
+                            title: {
+                                display: true,
+                                text: 'Velocity (mm/s)',
+                                color: '#94a3b8'
+                            },
+                            grid: { display: false }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            labels: { color: '#94a3b8' }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Update charts with new data
+        function updateCharts(data) {
+            if (!data) return;
+            
+            // Update trajectory chart
+            trajectoryChart.data.datasets[0].data = data.time.map((t, i) => ({
+                x: t,
+                y: data.target_x[i]
+            }));
+            
+            trajectoryChart.data.datasets[1].data = data.time.map((t, i) => ({
+                x: t,
+                y: data.actual_x[i]
+            }));
+            
+            // Update error chart
+            errorChart.data.datasets[0].data = data.time.map((t, i) => ({
+                x: t,
+                y: data.error_x[i]
+            }));
+            
+            errorChart.data.datasets[1].data = data.time.map((t, i) => ({
+                x: t,
+                y: data.velocity[i]
+            }));
+            
+            trajectoryChart.update();
+            errorChart.update();
+        }
+
+        // Update quality metrics display
+        function updateQualityMetrics(metrics) {
+            document.getElementById('overallScore').textContent = 
+                Math.round(metrics.overall_score);
+            document.getElementById('trackingScore').textContent = 
+                Math.round(metrics.tracking_score);
+            document.getElementById('vibrationScore').textContent = 
+                Math.round(metrics.vibration_score);
+            document.getElementById('rmsError').textContent = 
+                metrics.rms_error_mm.toFixed(3);
+            document.getElementById('maxError').textContent = 
+                metrics.max_error_mm.toFixed(3);
+            
+            // Update recommendations based on metrics
+            const recommendations = document.getElementById('recommendations');
+            let recs = [];
+            
+            if (metrics.tracking_score < 80) {
+                recs.push('• Reduce acceleration for better tracking');
+            }
+            if (metrics.vibration_score < 70) {
+                recs.push('• Enable input shaping for vibration reduction');
+            }
+            if (metrics.max_error_mm > 0.05) {
+                recs.push('• Consider backlash compensation for mechanical slop');
+            }
+            if (metrics.rms_error_mm < 0.01 && metrics.vibration_score > 80) {
+                recs.push('• System is well-tuned, you can increase speed slightly');
+            }
+            
+            if (recs.length === 0) {
+                recs.push('• System is optimally tuned');
+            }
+            
+            recommendations.innerHTML = recs.map(r => `<p>${r}</p>`).join('');
+        }
+
+        // Update real-time simulation
+        function updateRealTimeSimulation(data) {
+            // Add point to charts
+            trajectoryChart.data.datasets[0].data.push({
+                x: data.time,
+                y: data.target[0]
+            });
+            trajectoryChart.data.datasets[1].data.push({
+                x: data.time,
+                y: data.position[0]
+            });
+            
+            errorChart.data.datasets[0].data.push({
+                x: data.time,
+                y: data.error[0]
+            });
+            errorChart.data.datasets[1].data.push({
+                x: data.time,
+                y: data.velocity[0]
+            });
+            
+            // Keep only last 100 points
+            const maxPoints = 100;
+            if (trajectoryChart.data.datasets[0].data.length > maxPoints) {
+                trajectoryChart.data.datasets.forEach(dataset => {
+                    dataset.data.shift();
+                });
+                errorChart.data.datasets.forEach(dataset => {
+                    dataset.data.shift();
+                });
+            }
+            
+            trajectoryChart.update('none');
+            errorChart.update('none');
+        }
+
+        // API Calls
+        async function updateParameters() {
+            const params = {
+                mass_x: parseFloat(document.getElementById('massX').value),
+                mass_y: parseFloat(document.getElementById('massX').value) * 1.6,
+                resonance_x: parseFloat(document.getElementById('resonanceX').value),
+                resonance_y: parseFloat(document.getElementById('resonanceX').value) * 0.85,
+                backlash_x: parseFloat(document.getElementById('backlashX').value),
+                backlash_y: parseFloat(document.getElementById('backlashX').value)
+            };
+            
+            try {
+                const response = await fetch('/api/init_printer', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(params)
+                });
+                
+                const data = await response.json();
+                if (data.status === 'success') {
+                    showNotification('Printer model updated successfully', 'success');
+                }
+            } catch (error) {
+                showNotification('Failed to update parameters', 'error');
+            }
+        }
+
+        async function planMovement() {
+            const fromX = parseFloat(document.getElementById('fromX').value);
+            const toX = parseFloat(document.getElementById('toX').value);
+            
+            const movement = {
+                from: [fromX, 0, 0],
+                to: [toX, 0, 0]
+            };
+            
+            try {
+                const response = await fetch('/api/plan_movement', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(movement)
+                });
+                
+                const data = await response.json();
+                if (data.status === 'success') {
+                    currentData = data.visualization;
+                    updateCharts(currentData);
+                    updateQualityMetrics(currentData.quality_metrics);
+                    showNotification('Movement planned successfully', 'success');
+                }
+            } catch (error) {
+                showNotification('Failed to plan movement', 'error');
+            }
+        }
+
+        async function simulateMovement() {
+            if (!currentData) {
+                showNotification('Please plan a movement first', 'error');
+                return;
+            }
+            
+            // Create trajectory from current data
+            const trajectory = [];
+            for (let i = 0; i < currentData.time.length; i++) {
+                trajectory.push([
+                    currentData.time[i],
+                    currentData.target_x[i],
+                    currentData.target_y[i],
+                    0
+                ]);
+            }
+            
+            try {
+                await fetch('/api/real_time_simulation', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ trajectory: trajectory })
+                });
+                
+                showNotification('Real-time simulation started', 'success');
+            } catch (error) {
+                showNotification('Failed to start simulation', 'error');
+            }
+        }
+
+        async function calibratePrinter() {
+            showNotification('Starting auto-calibration...', 'success');
+            
+            // Simulate calibration steps
+            setTimeout(() => showNotification('Measuring resonance frequencies...', 'success'), 1000);
+            setTimeout(() => showNotification('Characterizing motors...', 'success'), 3000);
+            setTimeout(() => showNotification('Calibration complete!', 'success'), 5000);
+        }
+
+        function runDemo() {
+            // Demo sequence
+            showNotification('Running demo sequence...', 'success');
+            
+            // Simulate different movements
+            setTimeout(() => {
+                document.getElementById('fromX').value = 0;
+                document.getElementById('toX').value = 50;
+                planMovement();
+            }, 1000);
+            
+            setTimeout(() => {
+                document.getElementById('fromX').value = 50;
+                document.getElementById('toX').value = 100;
+                planMovement();
+            }, 3000);
+            
+            setTimeout(() => {
+                simulateMovement();
+            }, 5000);
+        }
+
+        function updateQualitySlider(value) {
+            document.getElementById('qualityValue').textContent = value + '%';
+            
+            // Adjust constraints based on quality preference
+            const maxVel = document.getElementById('maxVel');
+            const maxAccel = document.getElementById('maxAccel');
+            
+            // Higher quality = lower speeds
+            const velMultiplier = value / 100;
+            const accelMultiplier = value / 100;
+            
+            maxVel.value = Math.round(300 * velMultiplier);
+            maxAccel.value = Math.round(5000 * accelMultiplier);
+        }
+
+        function showNotification(message, type = 'success') {
+            const notification = document.createElement('div');
+            notification.className = `notification ${type === 'error' ? 'error' : ''}`;
+            notification.innerHTML = `
+                <div style="font-size: 18px;">${type === 'success' ? '✓' : '✗'}</div>
+                <div>${message}</div>
+            `;
+            
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.style.animation = 'slideIn 0.3s ease reverse';
+                setTimeout(() => notification.remove(), 300);
+            }, 3000);
+        }
+
+        // Initialize everything when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            initWebSocket();
+            initCharts();
+            
+            // Initialize with default movement
+            setTimeout(() => {
+                updateParameters();
+                setTimeout(() => planMovement(), 500);
+            }, 1000);
+        });
+    </script>
+</body>
+</html>
