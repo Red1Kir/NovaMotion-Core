@@ -1,0 +1,11 @@
+# Создать структуру
+mkdir -p nova_core_prototype/{digital_twin,mpc_controller,web_visualization/{templates,static/{css,js}},hardware_interface,calibration}
+
+# Скопировать исправленные файлы в соответствующие директории
+# Установить зависимости
+pip install numpy scipy matplotlib flask flask-socketio pyserial
+
+# Запустить
+cd nova_core_prototype
+python main.py --mode demo  # Тест без железа
+python main.py --mode web   # Веб-интерфейс
